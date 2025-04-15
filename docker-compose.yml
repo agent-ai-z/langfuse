@@ -3,6 +3,8 @@
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
+# https://langfuse.com/self-hosting
+
 services:
   langfuse-worker:
     container_name: langfuse-worker
@@ -18,11 +20,11 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - 3030:3030
+      - 33030:3030
     environment: &langfuse-worker-env
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres # CHANGEME
-      SALT: "mysalt" # CHANGEME
-      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000" # CHANGEME: generate via `openssl rand -hex 32`
+      SALT: "quest-it"
+      ENCRYPTION_KEY: "1e9eb90e84862a0c47be9af74165e35ed800661a2ebe28592b3b9184414a97e0" # generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
       CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}
@@ -57,7 +59,7 @@ services:
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: ${LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS:-}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_AUTH: ${REDIS_AUTH:-myredissecret} # CHANGEME
+      REDIS_AUTH: ${REDIS_AUTH:-quest-it}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
       REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
       REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
@@ -71,11 +73,11 @@ services:
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - 3000:3000
+      - 80:3000
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: mysecret # CHANGEME
+      NEXTAUTH_SECRET: quest-it
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-}
       LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-}
       LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-}
@@ -96,15 +98,15 @@ services:
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - 8123:8123
-      - 9000:9000
+      - 38123:8123
+      - 39000:9000
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      test: wget --no-verbose --tries=1 --spider http://clickhouse:8123/ping || exit 1
       interval: 5s
       timeout: 5s
       retries: 10
@@ -121,10 +123,10 @@ services:
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
       MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: miniosecret # CHANGEME
+      MINIO_ROOT_PASSWORD: quest-it
     ports:
-      - 9090:9000
-      - 9091:9001
+      - 39090:9000
+      - 39091:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -140,16 +142,17 @@ services:
     container_name: redis
     image: redis:7
     restart: always
-    # CHANGEME: row below to secure redis password
     command: >
-      --requirepass ${REDIS_AUTH:-myredissecret}
+      --requirepass ${REDIS_AUTH:-quest-it}
     ports:
-      - 6379:6379
+      - 36379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 10s
       retries: 10
+    networks:
+      - langfuse-network
 
   postgres:
     container_name: postgres
@@ -161,11 +164,11 @@ services:
       timeout: 3s
       retries: 10
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres # CHANGEME
-      POSTGRES_DB: postgres
+      POSTGRES_USER: quest-it
+      POSTGRES_PASSWORD: quest-it
+      POSTGRES_DB: quest-it
     ports:
-      - 5432:5432
+      - 35432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
     networks:
