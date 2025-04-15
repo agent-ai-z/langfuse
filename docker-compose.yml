@@ -5,6 +5,7 @@
 # External connections from other machines will not be able to reach these services directly.
 services:
   langfuse-worker:
+    container_name: langfuse-worker
     image: langfuse/langfuse-worker:3
     restart: always
     depends_on: &langfuse-depends-on
@@ -17,7 +18,7 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - 127.0.0.1:3030:3030
+      - 3030:3030
     environment: &langfuse-worker-env
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres # CHANGEME
       SALT: "mysalt" # CHANGEME
@@ -61,8 +62,11 @@ services:
       REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
       REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
+    networks:
+      - langfuse-network
 
   langfuse-web:
+    container_name: langfuse-web
     image: langfuse/langfuse:3
     restart: always
     depends_on: *langfuse-depends-on
@@ -81,8 +85,11 @@ services:
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
+    networks:
+      - langfuse-network
 
   clickhouse:
+    container_name: clickhouse
     image: clickhouse/clickhouse-server
     restart: always
     user: "101:101"
@@ -94,16 +101,19 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+      - 8123:8123
+      - 9000:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 1s
+    networks:
+      - langfuse-network
 
   minio:
+    container_name: minio
     image: minio/minio
     restart: always
     entrypoint: sh
@@ -114,7 +124,7 @@ services:
       MINIO_ROOT_PASSWORD: miniosecret # CHANGEME
     ports:
       - 9090:9000
-      - 127.0.0.1:9091:9001
+      - 9091:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -123,15 +133,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 1s
+    networks:
+      - langfuse-network
 
   redis:
+    container_name: redis
     image: redis:7
     restart: always
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 127.0.0.1:6379:6379
+      - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -139,6 +152,7 @@ services:
       retries: 10
 
   postgres:
+    container_name: postgres
     image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
     healthcheck:
@@ -151,9 +165,11 @@ services:
       POSTGRES_PASSWORD: postgres # CHANGEME
       POSTGRES_DB: postgres
     ports:
-      - 127.0.0.1:5432:5432
+      - 5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - langfuse-network
 
 volumes:
   langfuse_postgres_data:
@@ -164,3 +180,12 @@ volumes:
     driver: local
   langfuse_minio_data:
     driver: local
+
+networks:
+  langfuse-network:
+    name: langfuse-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.200.0/24
